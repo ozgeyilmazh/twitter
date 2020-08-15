@@ -1,0 +1,373 @@
+{% load static %}
+<!doctype html> 
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="{% static 'css/bootstrap.min.css' %}">
+
+    <title>{% block title %} Tweetme.com {% endblock %}</title>
+    <style>
+      .red-color {
+        color: red;
+      }
+      .grey-color {
+        color: grey;
+      }
+      .media-focus{
+          background-color: rgba(255,255,0,0.22);
+      }
+    </style>
+  </head>
+  <body>
+
+
+    <div class="container">
+        {% include "navbar.html" %}
+        {% include "reply-modal.html" %}
+        {% block content %}
+
+        {% endblock %}
+    </div>
+
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+    <script>
+      
+    function getParameterByName(name, url) {
+        if (!url) url = window.location.href;
+        name = name.replace(/[\[\]]/g, '\\$&');
+        var regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)'),
+            results = regex.exec(url);
+        if (!results) return null;
+        if (!results[2]) return '';
+        return decodeURIComponent(results[2].replace(/\+/g, ' '));
+    }
+        function loadTweetContainer(tweetContainerID, fetchOneId){
+        
+        var query = getParameterByName('q');
+        var tweetList = [];
+        var nextTweetURL;
+        var tweetContainer;
+        if(tweetContainerID){
+          tweetContainer = $("#" + tweetContainerID)
+        }
+        else{
+          tweetContainer = $('#tweet-container')
+        }
+
+        var initialURL = tweetContainer.attr("data-url") || "/api/tweet/";
+        console.log(initialURL)
+
+        $(document.body).on("click", ".tweet-reply",function(e){
+            e.preventDefault()
+            var this_ = $(this)
+            var parentId = this_.attr("data-id")
+            var username = this_.attr("data-user")
+
+            $("#replyModal").modal({})
+            $("#replyModal textarea").after("<input type='hidden' value='"+ parentId +"' name='parent_id'>")
+            $("#replyModal textarea").after("<input type='hidden' value='"+ true +"' name='reply'>")
+            $("#replyModal textarea").val("@" + username + " ")
+              
+
+        })
+
+        $(document.body).on("click", ".tweet-like",function(e){
+            e.preventDefault()
+            var this_ = $(this)
+            var tweetId = this_.attr("data-id")
+            var likedURL = '/api/tweet/' + tweetId + "/like/"
+            //this_.text("Liked")
+
+            $.ajax({
+                method: 'GET',
+                url: likedURL,
+                success: function(data){
+                    if(data.liked){
+                      this_.text("Liked")
+                    } else {
+                      this_.text("Unliked")
+
+                    }
+                },
+                error: function(data){
+                  console.log("error")
+                }
+            })
+
+        })
+
+        $(document.body).on("click", ".retweet",function(e){
+            e.preventDefault()
+            var url = "/api" + $(this).attr("href")
+
+            $.ajax({
+                method: "GET",
+                url: url,
+                success: function(data){
+                   // if username is in APİ path  lets ignore
+                    if(initialURL == '/api/tweet/'){
+                      attachTweet(data,true,true)
+                      updateHashLinks()
+                    }
+                   
+                },
+                error: function(data){
+                    console.log("error")
+                }
+            })
+
+        })
+
+        function updateHashLinks(){
+            $(".content").each(function(data){
+                var hashtagRegex = /(^|\s)#([\w\d-]+)/g
+                var usernameRegex = /(^|\s)@([\w\d-]+)/g
+                var currentHtml = $(this).html()
+                var newText; 
+
+                newText = currentHtml.replace(hashtagRegex,"$1<a href='/tags/$2/'>#$2</a>")
+                newText = newText.replace(usernameRegex,"$1 @<a href='/$2/'>$2</a>")
+                $(this).html(newText)
+            })
+            //create hashtag
+        }
+        function formatTweet(tweetValue){
+
+          var preContent = "";
+          var container = "";
+          var tweetContent = "";
+          var is_reply = tweetValue.reply
+          var replyId = tweetValue.id
+          if(tweetValue.parent){
+              replyId = tweetValue.parent.id
+          }
+
+          var openingContainerDiv = "<div class=\"media\">";
+          if(tweetValue.id == fetchOneId){
+                openingContainerDiv = "<div class=\"media media-focus\">";
+                setTimeout(function(){
+                    $(".media-focus").css("background-color", '#fff')    
+                }, 2000)
+          }
+
+          if(tweetValue.parent && !is_reply){
+            tweetValue = tweetValue.parent
+            preContent = "<span class='grey-color'>Retweet via " +
+                                        tweetValue.user.username + " on " + tweetValue.date_display + "</span><br>";
+          }
+          else if(tweetValue.parent && is_reply){
+            preContent = "<span class='grey-color'>Reply to @" + tweetValue.parent.user.username  + "</span><br>";
+          }
+
+          var verb = "Like"
+          if(tweetValue.did_like){
+              verb = "Unlike"
+          }
+
+
+          tweetContent = "<span class='content'>" + tweetValue.content + " </span><br> via <a href= '" + tweetValue.user.url + "'>" + tweetValue.user.username +
+                                 "</a> | " + tweetValue.date_display + "  |  " + "<a href='/tweet/"+ tweetValue.id +"'>View  |  </a>" 
+                                        + "<a class='retweet' href='/tweet/"+ tweetValue.id +"/retweet/'>Retweet</a>"  + "  |  <a href='#' class='tweet-like' data-id='" 
+                                        + tweetValue.id + "'>"+ verb +" ("+ tweetValue.likes +")</a>  |  " + "<a href='#' class='tweet-reply' data-user='"+ tweetValue.user.username +"' data-id='"+ replyId + "'>Reply</a>" ;
+          if(preContent){
+            container = openingContainerDiv + "<div class=\"media-body\">"+ preContent + tweetContent +"</div></div><hr>";
+          }
+          else{
+            container = openingContainerDiv + "<div class=\"media-body\">"  + tweetContent +"</div></div><hr>";
+          }
+
+          return container;
+        } 
+        function attachTweet(tweetValue, prepend, retweet){
+            var dateDisplay = tweetValue.date_display;
+            var tweetContent = tweetValue.content;
+            var tweetUser = tweetValue.user;
+            var tweetFormattedHTML;
+            var verb = "Like"
+            if(tweetValue.did_like){
+              verb = "Unlike"
+            }
+            tweetFormattedHTML = formatTweet(tweetValue);
+           
+            if (prepend == true){
+                tweetContainer.prepend(tweetFormattedHTML)
+            }
+            else {
+                tweetContainer.append(tweetFormattedHTML)
+            }
+        }
+        function parseTweets(){
+            if (tweetList == 0){
+                tweetContainer.text("No tweets currently found")
+            }
+            else {
+                //tweets exist parse display them
+            $.each(tweetList, function(key,value){
+                    var tweetKey = key;
+                    if (value.parent){
+                        attachTweet(value, false, true)
+                    }
+                    else{
+                        attachTweet(value)
+                    }
+                })
+            }
+        }
+
+        function fetchTweets(url){
+            var fetchURL;
+            if(!url){
+                fetchURL = initialURL
+            }
+            else {
+                fetchURL = url
+            }
+            $.ajax({
+                url: fetchURL,
+                data: {
+                    "q": query
+                },
+                method: "GET",
+                success: function(data){
+                    tweetList = data.results
+                    if(data.next){
+                        nextTweetURL = data.next
+                    }
+                    else {
+                        $("#loadmore").css("display", "none")
+                    }
+                    parseTweets()
+                    updateHashLinks()
+                },
+                error: function(data){
+                    console.log("error")
+                    console.log(data)
+                }
+            })
+        }
+        function fetchSingle(id){
+            var fetchDetailUrl = '/api/tweet/' + fetchOneId + '/';
+           
+            $.ajax({
+                url: fetchDetailUrl,
+                method: "GET",
+                success: function(data){
+                    tweetList = data.results
+
+                    parseTweets()
+                    updateHashLinks()
+                },
+                error: function(data){
+                    console.log("error")
+                    console.log(data)
+                }
+            })
+        }
+
+        if(fetchOneId){
+            fetchSingle(fetchOneId)
+        }
+        else{
+            fetchTweets()
+        }
+
+        //daha fazla yükleme - pagination
+
+        $("#loadmore").click(function(event){
+            event.preventDefault()
+            if(nextTweetURL){
+                fetchTweets(nextTweetURL)
+            }
+        })
+
+        // tweet karakter sayısı
+        var charsStart = 140;
+        var charsCurrent = 0;
+        $(".tweet-form").append("<span class='tweetCharsLeft'>" + charsStart + "</span>")
+
+        $(".tweet-form textarea").keyup(function(event){
+            var tweetValue = $(this).val();
+            charsCurrent = charsStart - tweetValue.length;
+            var spanChars = $(this).parent().parent().parent().find("span.tweetCharsLeft")
+            spanChars.text(charsCurrent)
+
+            if (charsCurrent > 0){
+                spanChars.removeClass("grey-color")
+                spanChars.removeClass("red-color")
+                
+            }
+            else if (charsCurrent == 0) {
+                spanChars.removeClass("red-color")
+                spanChars.addClass("grey-color")
+            }
+            else if(charsCurrent < 0){
+                spanChars.removeClass("grey-color")
+                spanChars.addClass("red-color")
+            }
+        })
+
+        $(".tweet-form").submit(function(event){
+            event.preventDefault()
+
+            var this_ = $(this) 
+            var formData = this_.serialize()
+            if (charsCurrent >= 0) {
+            $.ajax({
+                url: "/api/tweet/create/",
+                data: formData,
+                method: "POST",
+                success: function(data){
+                    this_.find("input[type=text], textarea").val("")
+                    attachTweet(data, true)
+                    updateHashLinks()
+                    $("#replyModal").modal("hide")
+                   //fetchTweets()
+                },
+                error: function(data){
+                    console.log("error")
+                    console.log(data)
+                }
+            })
+          }
+          else {
+              alert("Has been passed over 140 character")
+          }
+        })
+
+    } 
+    </script>
+    {% block script %} {% endblock %}
+   <script>
+       $(document).ready(function(){
+           var typingTimer;
+           var doneInterval = 800
+           var searchInput = $("#navbar-search-form input[type=text]")
+           var searchQuery;
+
+           searchInput.keyup(function(event){
+               searchQuery = $(this).val()
+               clearTimeout(typingTimer)
+               typingTimer = setTimeout(doneSearchTyping, doneInterval)
+           })
+
+           searchInput.keydown(function(event){
+               clearTimeout(typingTimer)
+           })
+
+           function doneSearchTyping(){
+               if(searchQuery){
+                   var url = '/search/?q=' + searchQuery
+                   document.location.href = url;
+               }
+           }
+       })
+   </script>
+    <script src="{% static 'js/bootstrap.min.js' %}"></script>
+  </body>
+</html>

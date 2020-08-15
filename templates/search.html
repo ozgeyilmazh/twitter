@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block script %} 
+<script>
+    $(document).ready(function(){
+        loadTweetContainer("tweet-container")
+    });
+</script>
+
+{% endblock %}
+
+{% block content %}
+<br>
+    
+
+    <div class="row">
+        <div class="col-sm-12">
+            {% if request.GET.q %}
+                <p class="lead">Results for {{ request.GET.q }}</p>
+                <hr>
+            {% endif %}
+        </div>
+        <div class="col-sm-9">
+            <h1>Tweets</h1>
+            <hr>
+            {% if not request.GET.q %}
+            <div class="">
+                {% include "tweets/form.html" with form=create_form action_url=create_url btn_title='Tweet' form_class='tweet-form' %}
+            </div>
+            <hr>
+            {% endif %}
+            <div id="tweet-container" data-url="/api/search/">
+
+
+            </div>
+            <a href="#" id="loadmore">Load More Tweets</a>
+         
+        </div>
+        <div class="col-sm-3">
+            <h1>Users</h1>
+            <hr>
+            {% for user in users %}
+                <a href="/{{ user.username }}/">{{ user.username }}</a><br>
+                {% empty %}
+                <p>No users found.</p>
+            {% endfor %}
+        </div>
+    </div>
+{% endblock %}
