@@ -1,0 +1,5 @@
+django==1.10
+django-crispy-forms
+djangorestframework==3.5.3
+markdown==2.6.7
+django-filter==1.0.1
